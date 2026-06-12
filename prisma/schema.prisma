@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TrackSourceType {
+  upload
+  forwarded_from_bot_chat
+  manual
+}
+
+enum ImportSourceType {
+  upload
+  telegram_audio
+  telegram_document
+}
+
+enum ImportStatus {
+  success
+  duplicate
+  rejected
+  failed
+}
+
+model User {
+  id                String      @id @default(cuid())
+  telegramUserId    String      @unique
+  username          String?
+  firstName         String?
+  lastName          String?
+  languageCode      String?
+  isPremium         Boolean     @default(false)
+  photoUrl          String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  tracks            Track[]
+  playlists         Playlist[]
+  importLogs        ImportLog[]
+}
+
+model Track {
+  id                   String          @id @default(cuid())
+  ownerUserId          String
+  sourceType           TrackSourceType
+  telegramFileId       String?
+  telegramUniqueFileId String?
+  checksumSha256       String?
+  fileStorageKey       String
+  fileUrl              String
+  title                String
+  artist               String
+  album                String?
+  durationSec          Int?
+  mimeType             String
+  fileSize             Int
+  coverImageUrl        String?
+  lyrics               String?
+  isFavorite           Boolean         @default(false)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  owner                User            @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  playlistItems        PlaylistItem[]
+  importLogs           ImportLog[]
+
+  @@index([ownerUserId, createdAt(sort: Desc)])
+  @@index([ownerUserId, title])
+  @@unique([ownerUserId, telegramUniqueFileId])
+  @@unique([ownerUserId, checksumSha256])
+}
+
+model Playlist {
+  id            String         @id @default(cuid())
+  ownerUserId   String
+  name          String
+  description   String?
+  coverImageUrl String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  owner         User           @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  items         PlaylistItem[]
+
+  @@index([ownerUserId, updatedAt(sort: Desc)])
+}
+
+model PlaylistItem {
+  playlistId String
+  trackId    String
+  position   Int
+  addedAt    DateTime @default(now())
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  track      Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+
+  @@id([playlistId, trackId])
+  @@unique([playlistId, position])
+  @@index([trackId])
+}
+
+model ImportLog {
+  id                   String           @id @default(cuid())
+  ownerUserId          String
+  trackId              String?
+  sourceType           ImportSourceType
+  status               ImportStatus
+  telegramFileId       String?
+  telegramUniqueFileId String?
+  checksumSha256       String?
+  errorCode            String?
+  errorMessage         String?
+  createdAt            DateTime         @default(now())
+  owner                User             @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  track                Track?           @relation(fields: [trackId], references: [id], onDelete: SetNull)
+
+  @@index([ownerUserId, createdAt(sort: Desc)])
+}
